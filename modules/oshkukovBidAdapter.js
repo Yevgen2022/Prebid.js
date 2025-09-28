@@ -23,11 +23,7 @@ function getPageUrl(bidderRequest) {
 function isBidRequestValid(bid) {
   const p = bid?.params || {};
   const size = pickFirstSize(bid);
-  return Boolean(
-    typeof p.publisherId === 'string' && p.publisherId.trim() &&
-    typeof p.placementId === 'string' && p.placementId.trim() &&
-    size && size.w > 0 && size.h > 0
-  );
+  return !!(p.publisherId && p.placementId && size?.w > 0 && size?.h > 0);
 }
 
 // We build a simple payload on the backend (one request for all bids)

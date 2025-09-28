@@ -103,23 +103,29 @@ describe('oshkukovBidAdapter', () => {
 
   describe('interpretResponse', () => {
     it('maps server response to Prebid banner bid', () => {
-      const result = spec.interpretResponse({ body: SERVER_DISPLAY_RESPONSE }, { adapterRequest: { bids: [DISPLAY_REQUEST] } });
+      const result = spec.interpretResponse(
+        { body: SERVER_DISPLAY_RESPONSE },
+        { adapterRequest: { bids: [DISPLAY_REQUEST] } }
+      );
+
       expect(result).to.be.an('array').with.length(1);
 
       const bid = result[0];
-      expect(bid.requestId).to.equal('abc123');
-      expect(bid.cpm).to.equal(0.91);
-      expect(bid.width).to.equal(300);
-      expect(bid.height).to.equal(250);
+      expect(bid).to.include({
+        requestId: 'abc123',
+        cpm: 0.91,
+        width: 300,
+        height: 250,
+        currency: 'USD',
+        creativeId: 'cr_001',
+        ttl: 45,
+        netRevenue: true,
+        mediaType: 'banner'
+      });
+
       expect(bid.ad).to.be.a('string').and.to.include('creative');
-      expect(bid.currency).to.equal('USD');
-      expect(bid.creativeId).to.equal('cr_001');
-      expect(bid.ttl).to.equal(45);
-      expect(bid.netRevenue).to.equal(true);
-      expect(bid.mediaType).to.equal('banner');
       expect(bid.meta.advertiserDomains).to.deep.equal(['advertiser.com']);
     });
-
     it('returns empty array on no body', () => {
       const result = spec.interpretResponse({}, {});
       expect(result).to.deep.equal([]);
