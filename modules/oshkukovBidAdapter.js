@@ -1,23 +1,29 @@
-// endpoint of auction
 import { registerBidder } from "../src/adapters/bidderFactory.js";
 import { BANNER } from "../src/mediaTypes.js";
 
-const AUCTION_PATH = "https://prebid.oshkukov.ua/auction";
 const BIDDER_CODE = "oshkukov";
+const DEFAULT_ENDPOINT = "https://prebid.oshkukov.ua/auction";
 
-// Utils
+// ---- utils ----
 function pickFirstSize(bid) {
-  // wait mediaTypes.banner.sizes as [[w,h], ...]
-  const sizes = bid.mediaTypes?.banner?.sizes;
+  const sizes = bid?.mediaTypes?.banner?.sizes;
   if (Array.isArray(sizes) && sizes.length && Array.isArray(sizes[0])) {
     const [w, h] = sizes[0];
-    return {w: Number(w), h: Number(h)};
+    return { w: Number(w), h: Number(h) };
   }
   return null;
 }
 
 function getPageUrl(bidderRequest) {
-  return bidderRequest?.refererInfo?.page || (typeof window !== 'undefined' ? window.location.href : '');
+  return (
+    bidderRequest?.refererInfo?.page ||
+    (typeof window !== "undefined" ? window.location.href : "")
+  );
+}
+
+function getEndpointFrom(bid) {
+  const u = bid?.params?.endpoint;
+  return typeof u === "string" && /^https?:\/\//i.test(u) ? u : DEFAULT_ENDPOINT;
 }
 
 function isBidRequestValid(bid) {
@@ -26,53 +32,57 @@ function isBidRequestValid(bid) {
   return !!(p.publisherId && p.placementId && size?.w > 0 && size?.h > 0);
 }
 
-// We build a simple payload on the backend (one request for all bids)
+// ---- buildRequests (batch) ----
 function buildRequests(validBidRequests, bidderRequest) {
+  if (!validBidRequests?.length) {
+    return null;
+  }
+
+  // endpoint take from the first bid (for the whole batch)
+  const url = getEndpointFrom(validBidRequests[0]);
+
   const payload = {
     bidderCode: BIDDER_CODE,
     pageUrl: getPageUrl(bidderRequest),
     currency: validBidRequests[0]?.params?.currency || "USD",
-
-    bids: validBidRequests.map(bid => {
-      const {w, h} = pickFirstSize(bid);
+    bids: validBidRequests.map((bid) => {
+      const { w, h } = pickFirstSize(bid) || { w: 0, h: 0 };
       return {
-        requestId: bid.bidId,                                      // bid's ID
-        placementId: bid.params.placementId,                      // where we give the show
-        publisherId: bid.params.publisherId,                     // who is the publisher
-        size: {w, h},                                           // the first valid dimension is selected
-        bidfloor: Number(bid.params.bidfloor || 0)       // minimum price (optional)
+        requestId: bid.bidId,
+        placementId: bid.params.placementId,
+        publisherId: bid.params.publisherId,
+        size: { w, h },
+        bidfloor: Number(bid.params.bidfloor || 0),
       };
-    })
+    }),
   };
 
   return {
     method: "POST",
-    url: AUCTION_PATH,
+    url,
     data: payload,
-    options: {withCredentials: false, contentType: "application/json"}
+    options: { withCredentials: false, contentType: "application/json" },
   };
 }
 
-// We map to Prebid format (minimum for a banner)
+// ---- interpretResponse ----
 function interpretResponse(serverResponse /*, bidRequest */) {
   const body = serverResponse?.body;
   if (!body || !Array.isArray(body.bids)) return [];
 
   const currency = body.currency || "USD";
-  return body.bids.map(b => ({
-    requestId: b.requestId,                 // must match bidId from buildRequests → ties response to original request
-    cpm: Number(b.cpm) || 0,                // bid price (cost per mille, i.e. CPM in USD or specified currency)
-    width: b.width,                         // width of the returned creative
-    height: b.height,                       // height of the returned creative
-    ad: b.ad,                               // HTML/JS creative code that will be rendered in the ad slot
-    currency,                               // currency of the CPM (e.g., "USD")
-    ttl: Number(b.ttl) || 30,               // time-to-live in seconds; how long this bid is valid
-    creativeId: b.creativeId || "creative", // creative identifier (useful for reporting/debugging)
-    netRevenue: true,                       // always true → indicates revenue is net (not gross)
-    mediaType: BANNER,                      // declares the media type (here: Banner)
-    meta: b.adomain
-      ? { advertiserDomains: b.adomain }    // advertiser domains (used for brand safety/verification)
-      : undefined
+  return body.bids.map((b) => ({
+    requestId: b.requestId,
+    cpm: Number(b.cpm) || 0,
+    width: Number(b.width),
+    height: Number(b.height),
+    ad: b.ad, // the backend should return the finished HTML
+    currency,
+    ttl: Number(b.ttl) || 30,
+    creativeId: b.creativeId || "creative",
+    netRevenue: true,
+    mediaType: BANNER,
+    meta: b.adomain ? { advertiserDomains: b.adomain } : undefined,
   }));
 }
 
@@ -81,7 +91,7 @@ export const spec = {
   supportedMediaTypes: [BANNER],
   isBidRequestValid,
   buildRequests,
-  interpretResponse
+  interpretResponse,
 };
 
 registerBidder(spec);

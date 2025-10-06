@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { spec } from 'modules/oshkukovBidAdapter.js';
+import { spec } from 'modules/oshkukovBidAdapterOld.js';
 import { newBidder } from 'src/adapters/bidderFactory.js';
 
 const DEFAULT_BIDDER_REQ = {
